@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>卷王问卷 - SurveyKing Lite</title>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Noto Sans SC', sans-serif; }
+    .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    .card-shadow { box-shadow: 0 10px 40px rgba(0,0,0,0.1); }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <div id="app">
+    
+    <!-- ==================== 用户填表界面 ==================== -->
+    <!-- 访问方式: your-site.com/?s=问卷ID 或 /s/问卷ID -->
+    <div v-if="userMode" class="max-w-3xl mx-auto px-4 py-8">
+      <div class="bg-white rounded-xl card-shadow p-8">
+        <div class="text-center mb-8">
+          <h1 class="text-2xl font-bold">{{ currentSurvey.title }}</h1>
+          <p class="text-gray-500 mt-2">{{ currentSurvey.description }}</p>
+        </div>
+
+        <form @submit.prevent="submitForm">
+          <div class="space-y-6">
+            <div v-for="(q, idx) in currentSurvey.questions" :key="q.id">
+              <label class="block font-medium mb-2">
+                {{ idx + 1 }}. {{ q.title }}
+                <span v-if="q.required" class="text-red-500">*</span>
+              </label>
+
+              <!-- 单行文本 -->
+              <input v-if="q.type==='text'" v-model="formData[q.id]" type="text" required
+                class="w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-purple-500">
+
+              <!-- 多行文本 -->
+              <textarea v-if="q.type==='textarea'" v-model="formData[q.id]" required rows="3"
+                class="w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-purple-500"></textarea>
+
+              <!-- 单选题 -->
+              <div v-if="q.type==='radio'" class="space-y-2">
+                <label v-for="opt in q.options" :key="opt" class="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-gray-50">
+                  <input type="radio" :name="q.id" :value="opt" v-model="formData[q.id]" required class="w-4 h-4 text-purple-600">
+                  <span>{{ opt }}</span>
+                </label>
+              </div>
+
+              <!-- 多选题 -->
+              <div v-if="q.type==='checkbox'" class="space-y-2">
+                <label v-for="opt in q.options" :key="opt" class="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-gray-50">
+                  <input type="checkbox" :value="opt" v-model="formData[q.id]" class="w-4 h-4 text-purple-600 rounded">
+                  <span>{{ opt }}</span>
+                </label>
+              </div>
+
+              <!-- 下拉选择 -->
+              <select v-if="q.type==='select'" v-model="formData[q.id]" required class="w-full border rounded-lg px-4 py-2">
+                <option value="">请选择</option>
+                <option v-for="opt in q.options" :key="opt" :value="opt">{{ opt }}</option>
+              </select>
+
+              <!-- 评分题 -->
+              <div v-if="q.type==='rating'" class="flex gap-2">
+                <button type="button" v-for="n in 5" :key="n" @click="formData[q.id]=n"
+                  :class="formData[q.id]>=n ? 'text-yellow-400' : 'text-gray-300'"
+                  class="text-3xl hover:scale-110 transition">★</button>
+              </div>
+
+              <!-- 日期题 -->
+              <input v-if="q.type==='date'" v-model="formData[q.id]" type="date" required class="border rounded-lg px-4 py-2">
+            </div>
+          </div>
+
+          <div class="mt-8 text-center">
+            <button type="submit" class="bg-purple-600 text-white px-12 py-3 rounded-lg hover:bg-purple-700 text-lg">
+              提交
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 用户提交成功 -->
+    <div v-if="userSubmitSuccess" class="fixed inset-0 bg-black/50 flex items-center justify-center">
+      <div class="bg-white rounded-xl p-8 text-center">
+        <div class="text-5xl mb-4">✅</div>
+        <h3 class="text-xl font-bold mb-2">提交成功</h3>
+        <p class="text-gray-500">感谢您的参与</p>
+      </div>
+    </div>
+
+    <!-- ==================== 管理后台 ==================== -->
+    <!-- 访问方式: your-site.com/admin 或直接访问根目录 -->
+
+    <!-- 登录页 -->
+    <div v-if="!userMode && !isLoggedIn && currentView==='login'" class="flex items-center justify-center min-h-screen px-4">
+      <div class="bg-white rounded-xl card-shadow p-8 w-full max-w-md">
+        <div class="text-center mb-8">
+          <h1 class="text-2xl font-bold">管理后台登录</h1>
+          <p class="text-gray-500 mt-2">默认账号: admin / 123456</p>
+        </div>
+        <form @submit.prevent="login">
+          <input v-model="loginForm.username" type="text" placeholder="用户名" class="w-full border rounded-lg px-4 py-3 mb-4">
+          <input v-model="loginForm.password" type="password" placeholder="密码" class="w-full border rounded-lg px-4 py-3 mb-4">
+          <button type="submit" class="w-full bg-purple-600 text-white py-3 rounded-lg hover:bg-purple-700">登录</button>
+        </form>
+        <div class="text-center mt-4">
+          <a href="/" class="text-purple-600 hover:underline">返回首页</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- 登录后的后台 -->
+    <div v-if="!userMode && isLoggedIn">
+      <!-- 后台导航 -->
+      <nav class="gradient-bg text-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+          <div class="flex items-center space-x-2">
+            <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+            <span class="text-xl font-bold">卷王问卷 - 管理后台</span>
+          </div>
+          <div class="flex items-center gap-4">
+            <span class="text-sm">欢迎, {{ loginForm.username }}</span>
+            <button @click="logout" class="bg-white/20 px-4 py-2 rounded-lg hover:bg-white/30">退出</button>
+          </div>
+        </div>
+      </nav>
+
+      <!-- 后台首页 -->
+      <div v-if="currentView==='dashboard'" class="max-w-7xl mx-auto px-4 py-8">
+        <div class="grid md:grid-cols-4 gap-6 mb-8">
+          <div @click="createSurvey" class="bg-white p-6 rounded-xl card-shadow cursor-pointer hover:scale-105 transition">
+            <div class="text-3xl mb-3">📝</div>
+            <h3 class="font-bold text-lg">问卷调查</h3>
+            <p class="text-gray-500 text-sm">创建问卷</p>
+          </div>
+          <div @click="createExam" class="bg-white p-6 rounded-xl card-shadow cursor-pointer hover:scale-105 transition">
+            <div class="text-3xl mb-3">📚</div>
+            <h3 class="font-bold text-lg">在线考试</h3>
+            <p class="text-gray-500 text-sm">创建考试</p>
+          </div>
+          <div @click="currentView='vote'" class="bg-white p-6 rounded-xl card-shadow cursor-pointer hover:scale-105 transition">
+            <div class="text-3xl mb-3">🗳️</div>
+            <h3 class="font-bold text-lg">投票评选</h3>
+          </div>
+          <div @click="currentView='query'" class="bg-white p-6 rounded-xl card-shadow cursor-pointer hover:scale-105 transition">
+            <div class="text-3xl mb-3">🔍</div>
+            <h3 class="font-bold text-lg">公开查询</h3>
+          </div>
+        </div>
+
+        <!-- 问卷列表 -->
+        <div class="bg-white rounded-xl card-shadow p-6">
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-bold">我的问卷</h2>
+            <button @click="createSurvey" class="bg-purple-600 text-white px-6 py-2 rounded-lg">+ 新建</button>
+          </div>
+          
+          <div v-if="surveys.length===0" class="text-center py-12 text-gray-400">
+            <p class="text-4xl mb-4">📋</p>
+            <p>暂无问卷</p>
+          </div>
+          
+          <div v-else class="space-y-4">
+            <div v-for="s in surveys" :key="s.id" class="border rounded-lg p-4 hover:shadow-md">
+              <div class="flex justify-between items-start">
+                <div class="flex-1">
+                  <h3 class="font-bold text-lg">{{ s.title }}</h3>
+                  <p class="text-gray-500 text-sm">{{ s.description }}</p>
+                  <div class="flex gap-4 mt-2 text-sm text-gray-400">
+                    <span>📊 {{ s.responses }} 份</span>
+                    <span>🕐 {{ formatDate(s.createdAt) }}</span>
+                  </div>
+                </div>
+                <div class="flex gap-2 flex-wrap">
+                  <button @click="editSurvey(s)" class="text-blue-600 px-3 py-1 hover:bg-blue-50 rounded">编辑</button>
+                  <button @click="getShareLink(s)" class="text-green-600 px-3 py-1 hover:bg-green-50 rounded">分享</button>
+                  <button @click="viewResponses(s)" class="text-purple-600 px-3 py-1 hover:bg-purple-50 rounded">数据</button>
+                  <button @click="deleteSurvey(s.id)" class="text-red-600 px-3 py-1 hover:bg-red-50 rounded">删除</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 问卷编辑器 -->
+      <div v-if="currentView==='editor'" class="max-w-5xl mx-auto px-4 py-8">
+        <div class="bg-white rounded-xl card-shadow p-6">
+          <h2 class="text-xl font-bold mb-6">{{ isEditing ? '编辑问卷' : '新建问卷' }}</h2>
+          
+          <div class="mb-6">
+            <input v-model="form.title" placeholder="问卷标题" class="text-xl font-bold w-full border-b pb-2 focus:outline-none focus:border-purple-500">
+            <input v-model="form.description" placeholder="问卷描述" class="w-full mt-3 border-b pb-2 text-gray-500 focus:outline-none focus:border-purple-500">
+          </div>
+
+          <div class="space-y-4 mb-6">
+            <div v-for="(q, idx) in form.questions" :key="idx" class="border rounded-lg p-4">
+              <div class="flex gap-2 mb-3">
+                <select v-model="q.type" class="border rounded px-2 py-1 text-sm">
+                  <option value="text">单行文本</option>
+                  <option value="textarea">多行文本</option>
+                  <option value="radio">单选题</option>
+                  <option value="checkbox">多选题</option>
+                  <option value="select">下拉选择</option>
+                  <option value="rating">评分题</option>
+                  <option value="date">日期题</option>
+                </select>
+                <input v-model="q.title" placeholder="问题标题" class="flex-1 border rounded px-3 py-1">
+                <button @click="removeQuestion(idx)" class="text-red-500 hover:bg-red-50 px-2">✕</button>
+              </div>
+              
+              <div v-if="['radio','checkbox','select'].includes(q.type)" class="ml-4 space-y-2">
+                <div v-for="(opt, oi) in q.options" :key="oi" class="flex gap-2">
+                  <input v-model="q.options[oi]" placeholder="选项" class="flex-1 border rounded px-2 py-1 text-sm">
+                  <button @click="q.options.splice(oi,1)" class="text-gray-400 hover:text-red-500">✕</button>
+                </div>
+                <button @click="q.options.push('')" class="text-purple-600 text-sm">+ 添加选项</button>
+              </div>
+              
+              <label class="flex items-center gap-2 mt-2 text-sm text-gray-500">
+                <input type="checkbox" v-model="q.required"> 必填
+              </label>
+            </div>
+          </div>
+
+          <button @click="addQuestion" class="w-full border-2 border-dashed border-gray-300 text-gray-400 py-4 rounded-lg hover:border-purple-400">
+            + 添加问题
+          </button>
+
+          <div class="flex justify-between mt-6 pt-6 border-t">
+            <button @click="currentView='dashboard'" class="text-gray-500">取消</button>
+            <button @click="saveSurvey" class="bg-purple-600 text-white px-8 py-2 rounded-lg">保存</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 数据查看 -->
+      <div v-if="currentView==='data'" class="max-w-7xl mx-auto px-4 py-8">
+        <div class="bg-white rounded-xl card-shadow p-6">
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-bold">{{ viewingSurvey.title }} - 答卷数据</h2>
+            <div class="flex gap-2">
+              <button @click="exportData('json')" class="border px-4 py-2 rounded">导出JSON</button>
+              <button @click="exportData('csv')" class="border px-4 py-2 rounded">导出CSV</button>
+              <button @click="currentView='dashboard'" class="text-gray-500">返回</button>
+            </div>
+          </div>
+          <div class="text-gray-500 mb-4">共 {{ viewingSurvey.responses }} 份答卷</div>
+          
+          <div class="overflow-x-auto">
+            <table class="w-full border-collapse">
+              <thead>
+                <tr class="bg-gray-50">
+                  <th class="border p-3">#</th>
+                  <th v-for="q in viewingSurvey.questions" :key="q.id" class="border p-3">{{ q.title }}</th>
+                  <th class="border p-3">提交时间</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(r, i) in viewingSurvey.responseData" :key="i" class="hover:bg-gray-50">
+                  <td class="border p-3">{{ i+1 }}</td>
+                  <td v-for="q in viewingSurvey.questions" :key="q.id" class="border p-3">
+                    {{ Array.isArray(r[q.id]) ? r[q.id].join(', ') : (r[q.id] || '-') }}
+                  </td>
+                  <td class="border p-3 text-gray-500">{{ r.submittedAt }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- 投票/查询 -->
+      <div v-if="currentView==='vote' || currentView==='query'" class="max-w-3xl mx-auto px-4 py-8">
+        <div class="bg-white rounded-xl card-shadow p-8 text-center">
+          <h2 class="text-2xl font-bold mb-4">{{ currentView==='vote' ? '投票评选' : '公开查询' }}</h2>
+          <p class="text-gray-500 mb-8">功能开发中...</p>
+          <button @click="currentView='dashboard'" class="text-purple-600 hover:underline">返回后台</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 首页（未登录） ==================== -->
+    <div v-if="!userMode && !isLoggedIn && currentView!=='login'">
+      <nav class="gradient-bg text-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+          <div class="flex items-center space-x-2">
+            <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+            <span class="text-xl font-bold">卷王问卷</span>
+          </div>
+          <button @click="currentView='login'" class="bg-white text-purple-600 px-6 py-2 rounded-lg hover:bg-purple-50">管理登录</button>
+        </div>
+      </nav>
+
+      <div class="max-w-7xl mx-auto px-4 py-12 text-center">
+        <h1 class="text-4xl font-bold text-gray-800 mb-4">新一代智能问卷考试系统</h1>
+        <p class="text-gray-600 text-lg mb-8">问卷调查 · 在线考试 · 投票评选 · 数据分析</p>
+        <p class="text-gray-400 mb-8">点击上方"管理登录"进入后台创建问卷</p>
+      </div>
+    </div>
+
+    <!-- 分享弹窗 -->
+    <div v-if="showShareModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click.self="showShareModal=false">
+      <div class="bg-white rounded-xl p-6 max-w-md mx-4">
+        <h3 class="text-lg font-bold mb-4">分享问卷</h3>
+        <p class="text-sm text-gray-500 mb-2">用户访问以下链接即可填写:</p>
+        <div class="bg-gray-100 p-3 rounded break-all text-sm font-mono mb-4">{{ shareUrl }}</div>
+        <div class="flex gap-2">
+          <button @click="copyUrl" class="flex-1 bg-purple-600 text-white py-2 rounded">复制链接</button>
+          <button @click="showShareModal=false" class="px-4 border rounded">关闭</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const { createApp } = Vue;
+
+    createApp({
+      data() {
+        return {
+          // 视图控制
+          currentView: 'dashboard',
+          
+          // 用户模式（填表）
+          userMode: false,
+          userSubmitSuccess: false,
+          currentSurvey: {},
+          formData: {},
+          
+          // 登录状态
+          isLoggedIn: false,
+          loginForm: { username: '', password: '' },
+          
+          // 问卷数据
+          surveys: [],
+          viewingSurvey: {},
+          
+          // 编辑器
+          isEditing: false,
+          form: { title: '', description: '', questions: [] },
+          
+          // 弹窗
+          showShareModal: false,
+          shareUrl: ''
+        };
+      },
+      mounted() {
+        this.checkUrl();
+        this.loadData();
+      },
+      methods: {
+        checkUrl() {
+          const params = new URLSearchParams(window.location.search);
+          const surveyId = params.get('s') || window.location.pathname.split('/s/')[1];
+          
+          if (surveyId) {
+            this.userMode = true;
+          } else if (window.location.pathname.includes('/admin')) {
+            this.currentView = 'login';
+          } else {
+            // 检查是否已登录
+            const loggedIn = localStorage.getItem('sk_logged_in');
+            if (loggedIn) {
+              this.isLoggedIn = true;
+              this.loginForm.username = localStorage.getItem('sk_username') || 'admin';
+            }
+          }
+          
+          if (surveyId) {
+            this.loadSurveyForUser(surveyId);
+          }
+        },
+        
+        loadData() {
+          const data = localStorage.getItem('surveys');
+          this.surveys = data ? JSON.parse(data) : [];
+        },
+        
+        saveData() {
+          localStorage.setItem('surveys', JSON.stringify(this.surveys));
+        },
+        
+        loadSurveyForUser(id) {
+          const survey = this.surveys.find(s => s.id === id);
+          if (survey) {
+            this.currentSurvey = survey;
+          } else {
+            alert('问卷不存在');
+            window.location.href = '/';
+          }
+        },
+        
+        submitForm() {
+          // 检查必填
+          for (const q of this.currentSurvey.questions) {
+            if (q.required) {
+              const val = q.type === 'checkbox' ? (this.formData[q.id] || []).length : this.formData[q.id];
+              if (!val) {
+                alert('请完成所有必填项');
+                return;
+              }
+            }
+          }
+          
+          // 保存答卷
+          const response = {
+            ...this.formData,
+            submittedAt: new Date().toLocaleString()
+          };
+          
+          this.currentSurvey.responseData.push(response);
+          this.currentSurvey.responses++;
+          this.saveData();
+          
+          this.userSubmitSuccess = true;
+          setTimeout(() => {
+            this.userSubmitSuccess = false;
+          }, 2000);
+          
+          this.formData = {};
+        },
+        
+        // 登录相关
+        login() {
+          if (this.loginForm.username === 'admin' && this.loginForm.password === '123456') {
+            this.isLoggedIn = true;
+            localStorage.setItem('sk_logged_in', 'true');
+            localStorage.setItem('sk_username', 'admin');
+            this.currentView = 'dashboard';
+          } else {
+            alert('用户名或密码错误');
+          }
+        },
+        
+        logout() {
+          this.isLoggedIn = false;
+          localStorage.removeItem('sk_logged_in');
+          localStorage.removeItem('sk_username');
+          this.currentView = 'login';
+        },
+        
+        // 后台操作
+        createSurvey() {
+          this.isEditing = false;
+          this.form = {
+            id: Date.now().toString(),
+            title: '',
+            description: '',
+            questions: [],
+            responses: 0,
+            responseData: [],
+            createdAt: new Date().toISOString()
+          };
+          this.currentView = 'editor';
+        },
+        
+        createExam() {
+          this.createSurvey();
+        },
+        
+        editSurvey(survey) {
+          this.isEditing = true;
+          this.form = JSON.parse(JSON.stringify(survey));
+          this.currentView = 'editor';
+        },
+        
+        addQuestion() {
+          this.form.questions.push({
+            id: 'q' + Date.now(),
+            type: 'text',
+            title: '',
+            options: ['', ''],
+            required: false
+          });
+        },
+        
+        removeQuestion(idx) {
+          this.form.questions.splice(idx, 1);
+        },
+        
+        saveSurvey() {
+          if (!this.form.title) {
+            alert('请输入问卷标题');
+            return;
+          }
+          
+          const idx = this.surveys.findIndex(s => s.id === this.form.id);
+          if (idx >= 0) {
+            this.surveys[idx] = { ...this.form };
+          } else {
+            this.surveys.push({ ...this.form });
+          }
+          
+          this.saveData();
+          this.currentView = 'dashboard';
+        },
+        
+        getShareLink(survey) {
+          const url = window.location.origin + '/?s=' + survey.id;
+          this.shareUrl = url;
+          this.showShareModal = true;
+        },
+        
+        copyUrl() {
+          navigator.clipboard.writeText(this.shareUrl);
+          alert('已复制');
+        },
+        
+        viewResponses(survey) {
+          this.viewingSurvey = survey;
+          this.currentView = 'data';
+        },
+        
+        deleteSurvey(id) {
+          if (confirm('确定删除?')) {
+            this.surveys = this.surveys.filter(s => s.id !== id);
+            this.saveData();
+          }
+        },
+        
+        exportData(format) {
+          const data = this.viewingSurvey.responseData;
+          if (!data.length) return;
+          
+          if (format === 'json') {
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            this.download(blob, 'data.json');
+          } else {
+            const headers = Object.keys(data[0]);
+            const csv = [headers.join(','), ...data.map(r => headers.map(h => JSON.stringify(r[h]||'')).join(','))].join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            this.download(blob, 'data.csv');
+          }
+        },
+        
+        download(blob, name) {
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = name;
+          a.click();
+        },
+        
+        formatDate(str) {
+          return new Date(str).toLocaleDateString('zh-CN');
+        }
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
