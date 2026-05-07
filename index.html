@@ -421,20 +421,17 @@
           }
         },
         
-        loadData() {
-          // 优先从GitHub加载问卷列表
-          fetch('./surveys.json')
-            .then(res => res.ok ? res.json() : Promise.reject())
-            .then(data => {
-              this.surveys = data;
+         async loadData() {
+            try {
+              const res = await fetch('./surveys.json');
+              if (!res.ok) throw new Error();
+              this.surveys = await res.json();
               localStorage.setItem('surveys', JSON.stringify(this.surveys));
-            })
-            .catch(() => {
-              // 失败则从本地存储加载
+            } catch (e) {
               const data = localStorage.getItem('surveys');
               this.surveys = data ? JSON.parse(data) : [];
-            });
-        },
+            }
+          },
 
         async loadFromGitHub() {
           const token = localStorage.getItem('sk_github_token');
