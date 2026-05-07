@@ -422,12 +422,18 @@
         },
         
         loadData() {
-          const data = localStorage.getItem('surveys');
-          this.surveys = data ? JSON.parse(data) : [];
-          // 如果已连接 GitHub，从 Gist 加载
-          if (this.gistId) {
-            this.loadFromGitHub();
-          }
+          // 优先从GitHub加载问卷列表
+          fetch('surveys.json')
+            .then(res => res.ok ? res.json() : Promise.reject())
+            .then(data => {
+              this.surveys = data;
+              localStorage.setItem('surveys', JSON.stringify(this.surveys));
+            })
+            .catch(() => {
+              // 失败则从本地存储加载
+              const data = localStorage.getItem('surveys');
+              this.surveys = data ? JSON.parse(data) : [];
+            });
         },
 
         async loadFromGitHub() {
