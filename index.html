@@ -666,38 +666,47 @@
           }
         },
 
-        async syncToGitHub(silent = false) {
-          const token = localStorage.getItem('sk_github_token');
-          if (!token || !this.gistId) {
-            if (!silent) alert('请先连接 GitHub');
-            return;
-          }
+         async syncToGitHub(silent = false) {
+            const token = localStorage.getItem('sk_github_token');
+            if (!token) {
+              if (!silent) alert('请先连接 GitHub');
+              return;
+            }
 
-          this.saving = true;
-          try {
-            const res = await fetch('https://api.github.com/gists/' + this.gistId, {
-              method: 'PATCH',
-              headers: {
-                'Authorization': 'token ' + token,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                files: {
-                  'surveys.json': {
-                    content: JSON.stringify(this.surveys, null, 2)
-                  }
-                }
-              })
-            });
+            this.saving = true;
+            try {
+              const shaRes = await fetch('https://api.github.com/repos/huayun2022/survey-lite/contents/surveys.json', {
+                headers: { 'Authorization': 'token ' + token }
+              });
 
-            if (!res.ok) throw new Error('同步失败');
-            if (!silent) alert('已同步');
-          } catch (e) {
-            if (!silent) alert('同步失败: ' + e.message);
-          } finally {
-            this.saving = false;
-          }
-        },
+              let sha = '';
+              if (shaRes.ok) {
+                const shaData = await shaRes.json();
+                sha = shaData.sha;
+              }
+
+              const content = btoa(unescape(encodeURIComponent(JSON.stringify(this.surveys, null, 2))));
+              const res = await fetch('https://api.github.com/repos/huayun2022/survey-lite/contents/surveys.json', {
+                method: 'PUT',
+                headers: {
+                  'Authorization': 'token ' + token,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  message: 'update: 问卷数据',
+                  content: content,
+                  sha: sha
+                })
+              });
+
+              if (!res.ok) throw new Error('同步失败');
+              if (!silent) alert('已同步到GitHub仓库');
+            } catch (e) {
+              if (!silent) alert('同步失败: ' + e.message);
+            } finally {
+              this.saving = false;
+            }
+          },
 
         disconnectGitHub() {
           if (confirm('确定断开 GitHub?')) {
