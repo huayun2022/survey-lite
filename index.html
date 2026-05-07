@@ -622,9 +622,9 @@
         },
 
         // GitHub Gist 同步
-        loadGitHubSettings() {
-          this.gistId = localStorage.getItem('sk_gist_id');
-        },
+          loadGitHubSettings() {
+            // 不自动加载，避免崩溃
+          },
 
         async connectGitHub() {
           if (!this.settingsForm.token) {
