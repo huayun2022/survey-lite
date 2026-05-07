@@ -454,14 +454,8 @@
         },
         
         saveData() {
-          localStorage.setItem('surveys', JSON.stringify(this.surveys));
-          // 自动同步到 GitHub
-          if (this.gistId) {
-           saveData() {
             localStorage.setItem('surveys', JSON.stringify(this.surveys));
           },
-          }
-        },
         
         loadSurveyForUser(id) {
           const survey = this.surveys.find(s => s.id === id);
