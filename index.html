@@ -423,7 +423,7 @@
         
         loadData() {
           // 优先从GitHub加载问卷列表
-          fetch('surveys.json')
+          fetch('./surveys.json')
             .then(res => res.ok ? res.json() : Promise.reject())
             .then(data => {
               this.surveys = data;
