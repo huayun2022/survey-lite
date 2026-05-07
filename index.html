@@ -393,11 +393,11 @@
           saving: false
         };
       },
-      mounted() {
-        this.checkUrl();
-        this.loadData();
-        this.loadGitHubSettings();
-      },
+      async mounted() {
+          await this.loadData();
+          this.checkUrl();
+          this.loadGitHubSettings();
+        },
       methods: {
         checkUrl() {
           const params = new URLSearchParams(window.location.search);
