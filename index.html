@@ -457,7 +457,9 @@
           localStorage.setItem('surveys', JSON.stringify(this.surveys));
           // 自动同步到 GitHub
           if (this.gistId) {
-            this.syncToGitHub(true);
+           saveData() {
+            localStorage.setItem('surveys', JSON.stringify(this.surveys));
+          },
           }
         },
         
