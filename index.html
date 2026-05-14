@@ -685,7 +685,7 @@
                 sha = shaData.sha;
               }
 
-              const content = btoa(unescape(encodeURIComponent(JSON.stringify(this.surveys, null, 2)));
+              const content = btoa(unescape(encodeURIComponent(JSON.stringify(this.surveys, null, 2))));
               const res = await fetch('https://api.github.com/repos/huayun2022/survey-lite/contents/surveys.json', {
                 method: 'PUT',
                 headers: {
