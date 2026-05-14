@@ -432,14 +432,16 @@
               this.surveys = JSON.parse(cached);
             }
 
-            // 如果配置了 Gist，从 Gist 加载最新数据
+            // 如果配置了 Gist 且有 Token，从 Gist 加载最新数据
             const hasGist = this.gistId || localStorage.getItem('sk_gist_id');
-            if (hasGist) {
+            const hasToken = this.githubToken || localStorage.getItem('sk_github_token');
+            if (hasGist && hasToken) {
               await this.loadFromGitHub();
-              return;
+              // 如果 Gist 有数据则优先使用
+              if (this.surveys && this.surveys.length > 0) return;
             }
 
-            // 最后从本地 surveys.json 加载初始数据
+            // 从本地 surveys.json 加载初始数据（无 Gist 或无 Token 时的兜底）
             try {
               const res = await fetch('./surveys.json');
               if (!res.ok) throw new Error('加载失败');
