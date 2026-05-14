@@ -455,6 +455,8 @@
         
         saveData() {
             localStorage.setItem('surveys', JSON.stringify(this.surveys));
+            // 自动同步到 GitHub
+            this.syncToGitHub(true);
           },
         
         loadSurveyForUser(id) {
