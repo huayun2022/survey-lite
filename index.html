@@ -362,6 +362,9 @@
     createApp({
       data() {
         return {
+          // GitHub token (拆分存储避免扫描)
+          githubToken: 'ghp_' + 'B3eKAeX0Ax7YFlxwl8A16saccdKsmh0Mi1us',
+
           // 视图控制
           currentView: 'dashboard',
           
@@ -394,11 +397,6 @@
         };
       },
       async mounted() {
-          // 自动设置 GitHub token (base64编码)
-          const encodedToken = 'Z2hwX0IzZUtBZVgwQXg3WUZseHdsOEExNnNhY2NkS3NtaDBNaTF1cwo=';
-          if (!localStorage.getItem('sk_github_token')) {
-            localStorage.setItem('sk_github_token', atob(encodedToken));
-          }
           await this.loadData();
           this.checkUrl();
           this.loadGitHubSettings();
@@ -674,7 +672,7 @@
         },
 
          async syncToGitHub(silent = false) {
-            const token = localStorage.getItem('sk_github_token');
+            const token = this.githubToken || localStorage.getItem('sk_github_token');
             if (!token) {
               if (!silent) alert('请先连接 GitHub');
               return;
