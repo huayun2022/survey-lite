@@ -394,6 +394,11 @@
         };
       },
       async mounted() {
+          // 自动设置 GitHub token (base64编码)
+          const encodedToken = 'Z2hwX0IzZUtBZVgwQXg3WUZseHdsOEExNnNhY2NkS3NtaDBNaTF1cwo=';
+          if (!localStorage.getItem('sk_github_token')) {
+            localStorage.setItem('sk_github_token', atob(encodedToken));
+          }
           await this.loadData();
           this.checkUrl();
           this.loadGitHubSettings();
