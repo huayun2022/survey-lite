@@ -427,30 +427,31 @@
          async loadData() {
             try {
               const res = await fetch('./surveys.json');
-              if (!res.ok) throw new Error();
+              if (!res.ok) throw new Error('加载失败');
               this.surveys = await res.json();
               localStorage.setItem('surveys', JSON.stringify(this.surveys));
             } catch (e) {
+              console.warn('加载本地失败，从GitHub加载');
+              await this.loadFromGitHub();
               const data = localStorage.getItem('surveys');
               this.surveys = data ? JSON.parse(data) : [];
             }
           },
 
         async loadFromGitHub() {
-          const token = localStorage.getItem('sk_github_token');
-          if (!token || !this.gistId) return;
+          const token = this.githubToken || localStorage.getItem('sk_github_token');
+          if (!token) return;
 
           try {
-            const res = await fetch('https://api.github.com/gists/' + this.gistId, {
+            const res = await fetch('https://api.github.com/repos/huayun2022/survey-lite/contents/surveys.json', {
               headers: { 'Authorization': 'token ' + token }
             });
             if (!res.ok) return;
             const data = await res.json();
-            const content = data.files['surveys.json'];
-            if (content) {
-              this.surveys = JSON.parse(content.content);
-              localStorage.setItem('surveys', JSON.stringify(this.surveys));
-            }
+            // 解码 base64 内容
+            const content = decodeURIComponent(escape(atob(data.content)));
+            this.surveys = JSON.parse(content);
+            localStorage.setItem('surveys', JSON.stringify(this.surveys));
           } catch (e) {
             console.error('加载失败', e);
           }
