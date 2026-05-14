@@ -362,8 +362,8 @@
     createApp({
       data() {
         return {
-          // GitHub token (拆分存储避免扫描)
-          githubToken: 'ghp_' + 'B3eKAeX0Ax7YFlxwl8A16saccdKsmh0Mi1us',
+          // GitHub token (部署后在设置页面粘贴你的 Token)
+          githubToken: '',
 
           // 视图控制
           currentView: 'dashboard',
@@ -372,6 +372,7 @@
           userMode: false,
           userSubmitSuccess: false,
           currentSurvey: {},
+          currentSurveyRef: null,
           formData: {},
           
           // 登录状态
@@ -392,7 +393,7 @@
 
           // GitHub 设置
           settingsForm: { token: '' },
-          gistId: '',
+          gistId: '38ecbe8e61ed1d95669544f29bbc5d16',
           saving: false
         };
       },
@@ -425,31 +426,42 @@
         },
         
          async loadData() {
+            // 优先从 localStorage 恢复（最快）
+            const cached = localStorage.getItem('surveys');
+            if (cached) {
+              this.surveys = JSON.parse(cached);
+            }
+
+            // 如果配置了 Gist，从 Gist 加载最新数据
+            const hasGist = this.gistId || localStorage.getItem('sk_gist_id');
+            if (hasGist) {
+              await this.loadFromGitHub();
+              return;
+            }
+
+            // 最后从本地 surveys.json 加载初始数据
             try {
               const res = await fetch('./surveys.json');
               if (!res.ok) throw new Error('加载失败');
               this.surveys = await res.json();
               localStorage.setItem('surveys', JSON.stringify(this.surveys));
             } catch (e) {
-              console.warn('加载本地失败，从GitHub加载');
-              await this.loadFromGitHub();
-              const data = localStorage.getItem('surveys');
-              this.surveys = data ? JSON.parse(data) : [];
+              console.warn('加载本地失败', e);
             }
           },
 
         async loadFromGitHub() {
           const token = this.githubToken || localStorage.getItem('sk_github_token');
-          if (!token) return;
+          const gistId = this.gistId || localStorage.getItem('sk_gist_id');
+          if (!token || !gistId) return;
 
           try {
-            const res = await fetch('https://api.github.com/repos/huayun2022/survey-lite/contents/surveys.json', {
+            const res = await fetch('https://api.github.com/gists/' + gistId, {
               headers: { 'Authorization': 'token ' + token }
             });
             if (!res.ok) return;
             const data = await res.json();
-            // 解码 base64 内容
-            const content = decodeURIComponent(escape(atob(data.content)));
+            const content = data.files['surveys.json'].content;
             this.surveys = JSON.parse(content);
             localStorage.setItem('surveys', JSON.stringify(this.surveys));
           } catch (e) {
@@ -488,7 +500,10 @@
           }
           
           // 保存答卷到引用
-          this.currentSurveyRef.responseData.push(response);
+          this.currentSurveyRef.responseData.push({
+            ...this.formData,
+            submittedAt: new Date().toISOString()
+          });
           this.currentSurveyRef.responses++;
           this.saveData();
           
@@ -626,12 +641,27 @@
 
         // GitHub Gist 同步
           loadGitHubSettings() {
-            // 不自动加载，避免崩溃
+            const savedGistId = localStorage.getItem('sk_gist_id');
+            const savedToken = localStorage.getItem('sk_github_token');
+            if (savedGistId) this.gistId = savedGistId;
+            if (savedToken) this.settingsForm.token = savedToken;
           },
 
         async connectGitHub() {
           if (!this.settingsForm.token) {
             alert('请输入 Token');
+            return;
+          }
+
+          // 保存 token 立即生效
+          localStorage.setItem('sk_github_token', this.settingsForm.token);
+
+          // 检查是否已有 Gist（本地存储或代码预设）
+          const existingGistId = localStorage.getItem('sk_gist_id') || this.gistId;
+          if (existingGistId && existingGistId.length > 0) {
+            this.gistId = existingGistId;
+            localStorage.setItem('sk_gist_id', existingGistId);
+            alert('已恢复 Gist 连接');
             return;
           }
 
@@ -660,7 +690,6 @@
             const data = await res.json();
             this.gistId = data.id;
             localStorage.setItem('sk_gist_id', data.id);
-            localStorage.setItem('sk_github_token', this.settingsForm.token);
             alert('连接成功');
           } catch (e) {
             alert('连接失败: ' + e.message);
@@ -671,39 +700,31 @@
 
          async syncToGitHub(silent = false) {
             const token = this.githubToken || localStorage.getItem('sk_github_token');
-            if (!token) {
+            const gistId = this.gistId || localStorage.getItem('sk_gist_id');
+            if (!token || !gistId) {
               if (!silent) alert('请先连接 GitHub');
               return;
             }
 
             this.saving = true;
             try {
-              const shaRes = await fetch('https://api.github.com/repos/huayun2022/survey-lite/contents/surveys.json', {
-                headers: { 'Authorization': 'token ' + token }
-              });
-
-              let sha = '';
-              if (shaRes.ok) {
-                const shaData = await shaRes.json();
-                sha = shaData.sha;
-              }
-
-              const content = btoa(unescape(encodeURIComponent(JSON.stringify(this.surveys, null, 2))));
-              const res = await fetch('https://api.github.com/repos/huayun2022/survey-lite/contents/surveys.json', {
-                method: 'PUT',
+              const res = await fetch('https://api.github.com/gists/' + gistId, {
+                method: 'PATCH',
                 headers: {
                   'Authorization': 'token ' + token,
                   'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                  message: 'update: 问卷数据',
-                  content: content,
-                  sha: sha
+                  files: {
+                    'surveys.json': {
+                      content: JSON.stringify(this.surveys, null, 2)
+                    }
+                  }
                 })
               });
 
               if (!res.ok) throw new Error('同步失败');
-              if (!silent) alert('已同步到GitHub仓库');
+              if (!silent) alert('已同步到 GitHub Gist');
             } catch (e) {
               if (!silent) alert('同步失败: ' + e.message);
             } finally {
