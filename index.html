@@ -466,6 +466,8 @@
           const survey = this.surveys.find(s => s.id === id);
           if (survey) {
             this.currentSurvey = survey;
+            // 保存到 surveys 数组的引用
+            this.currentSurveyRef = survey;
           } else {
             alert('问卷不存在');
             window.location.href = '/';
@@ -484,14 +486,9 @@
             }
           }
           
-          // 保存答卷
-          const response = {
-            ...this.formData,
-            submittedAt: new Date().toLocaleString()
-          };
-          
-          this.currentSurvey.responseData.push(response);
-          this.currentSurvey.responses++;
+          // 保存答卷到引用
+          this.currentSurveyRef.responseData.push(response);
+          this.currentSurveyRef.responses++;
           this.saveData();
           
           this.userSubmitSuccess = true;
