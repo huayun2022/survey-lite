@@ -431,13 +431,28 @@
         
           async loadData() {
             // 版本检测：清除旧版损坏缓存
-            const CACHE_VERSION = '3';
+            const CACHE_VERSION = '4';
             if (localStorage.getItem('sk_cache_ver') !== CACHE_VERSION) {
               localStorage.removeItem('surveys');
               localStorage.setItem('sk_cache_ver', CACHE_VERSION);
             }
 
-            // 从 Gist 加载（跨设备数据源）
+            // 优先从 localStorage 加载（即时、可靠）
+            try {
+              const cached = localStorage.getItem('surveys');
+              if (cached) {
+                this.surveys = JSON.parse(cached);
+                if (this.surveys.length > 0) {
+                  // 后台从 Gist 合并跨设备提交的答卷
+                  this.mergeFromGist();
+                  return;
+                }
+              }
+            } catch (_) {
+              localStorage.removeItem('surveys');
+            }
+
+            // localStorage 无数据，从 Gist 加载
             const hasGist = this.gistId || localStorage.getItem('sk_gist_id');
             const hasToken = this.githubToken || localStorage.getItem('sk_github_token');
             if (hasGist && hasToken) {
@@ -449,17 +464,6 @@
               }
             }
 
-            // 本地缓存兜底
-            try {
-              const cached = localStorage.getItem('surveys');
-              if (cached) {
-                this.surveys = JSON.parse(cached);
-                if (this.surveys.length > 0) return;
-              }
-            } catch (_) {
-              localStorage.removeItem('surveys');
-            }
-
             // 首次访问：从 surveys.json 加载种子数据
             try {
               const res = await fetch('./surveys.json');
@@ -469,6 +473,38 @@
             } catch (e) {
               console.warn('加载本地失败', e);
             }
+          },
+
+          async mergeFromGist() {
+            const token = this.githubToken || localStorage.getItem('sk_github_token');
+            const gistId = this.gistId || localStorage.getItem('sk_gist_id');
+            if (!token || !gistId) return;
+            try {
+              const gistData = await this.loadFromGitHub();
+              if (!gistData) return;
+              let changed = false;
+              for (const gs of gistData) {
+                const local = this.surveys.find(s => s.id === gs.id);
+                if (local) {
+                  // Gist 有本地没有的答卷 → 合并
+                  for (const r of gs.responseData) {
+                    if (!local.responseData.find(lr => lr.submittedAt === r.submittedAt)) {
+                      local.responseData.push(r);
+                      local.responses = local.responseData.length;
+                      changed = true;
+                    }
+                  }
+                } else {
+                  // Gist 有本地没有的问卷 → 添加
+                  this.surveys.push(gs);
+                  changed = true;
+                }
+              }
+              if (changed) {
+                localStorage.setItem('surveys', JSON.stringify(this.surveys));
+                this.syncToGitHub(true);
+              }
+            } catch (_) {}
           },
 
         async loadFromGitHub() {
