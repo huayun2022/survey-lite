@@ -258,24 +258,28 @@
           <div class="text-gray-500 mb-4">共 {{ viewingSurvey.responses }} 份答卷</div>
           
           <div class="overflow-x-auto">
-            <table class="w-full border-collapse">
-              <thead>
-                <tr class="bg-gray-50">
-                  <th class="border p-3">#</th>
-                  <th v-for="q in viewingSurvey.questions" :key="q.id" class="border p-3">{{ q.title }}</th>
-                  <th class="border p-3">提交时间</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(r, i) in viewingSurvey.responseData" :key="i" class="hover:bg-gray-50">
-                  <td class="border p-3">{{ i+1 }}</td>
-                  <td v-for="q in viewingSurvey.questions" :key="q.id" class="border p-3">
-                    {{ Array.isArray(r[q.id]) ? r[q.id].join(', ') : (r[q.id] || '-') }}
-                  </td>
-                  <td class="border p-3 text-gray-500">{{ r.submittedAt }}</td>
-                </tr>
-              </tbody>
-            </table>
+              <table class="w-full border-collapse">
+                <thead>
+                  <tr class="bg-gray-50">
+                    <th class="border p-3">#</th>
+                    <th v-for="q in viewingSurvey.questions" :key="q.id" class="border p-3">{{ q.title }}</th>
+                    <th class="border p-3">提交时间</th>
+                    <th class="border p-3 w-20">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(r, i) in viewingSurvey.responseData" :key="i" class="hover:bg-gray-50">
+                    <td class="border p-3">{{ i+1 }}</td>
+                    <td v-for="q in viewingSurvey.questions" :key="q.id" class="border p-3">
+                      {{ Array.isArray(r[q.id]) ? r[q.id].join(', ') : (r[q.id] || '-') }}
+                    </td>
+                    <td class="border p-3 text-gray-500">{{ r.submittedAt }}</td>
+                    <td class="border p-3 text-center">
+                      <button @click="deleteResponse(i)" class="text-red-500 hover:text-red-700 text-sm">删除</button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
           </div>
         </div>
       </div>
@@ -628,6 +632,13 @@
         viewResponses(survey) {
           this.viewingSurvey = survey;
           this.currentView = 'data';
+        },
+
+        deleteResponse(index) {
+          if (!confirm('确定删除此条答卷？')) return;
+          this.viewingSurvey.responseData.splice(index, 1);
+          this.viewingSurvey.responses--;
+          this.saveData();
         },
         
         deleteSurvey(id) {
