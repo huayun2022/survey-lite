@@ -18,7 +18,7 @@
     
     <!-- ==================== 用户填表界面 ==================== -->
     <!-- 访问方式: your-site.com/?s=问卷ID 或 /s/问卷ID -->
-    <div v-if="userMode" class="max-w-3xl mx-auto px-4 py-8">
+    <div v-if="userMode && !userSubmitSuccess" class="max-w-3xl mx-auto px-4 py-8">
       <div class="bg-white rounded-xl card-shadow p-8">
         <div class="text-center mb-8">
           <h1 class="text-2xl font-bold">{{ currentSurvey.title }}</h1>
@@ -85,11 +85,10 @@
     </div>
 
     <!-- 用户提交成功 -->
-    <div v-if="userSubmitSuccess" class="fixed inset-0 bg-black/50 flex items-center justify-center">
-      <div class="bg-white rounded-xl p-8 text-center">
-        <div class="text-5xl mb-4">✅</div>
-        <h3 class="text-xl font-bold mb-2">提交成功</h3>
-        <p class="text-gray-500">感谢您的参与</p>
+    <div v-if="userMode && userSubmitSuccess" class="flex items-center justify-center min-h-screen gradient-bg px-4">
+      <div class="text-center text-white">
+        <div class="text-8xl mb-6">🎉</div>
+        <h2 class="text-4xl font-bold mb-4">祝你快乐幸福每一天</h2>
       </div>
     </div>
 
@@ -569,10 +568,6 @@
           this.saveData();
           
           this.userSubmitSuccess = true;
-          setTimeout(() => {
-            this.userSubmitSuccess = false;
-          }, 2000);
-          
           this.formData = {};
         },
         
