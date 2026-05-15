@@ -426,26 +426,27 @@
         },
         
           async loadData() {
-            // 优先从 localStorage 恢复
+            // 优先从 localStorage 恢复（本地最新数据）
             try {
               const cached = localStorage.getItem('surveys');
-              if (cached) this.surveys = JSON.parse(cached);
+              if (cached) {
+                this.surveys = JSON.parse(cached);
+                // 已有本地数据（含答卷），不再加载远程
+                if (this.surveys.length > 0) return;
+              }
             } catch (_) {}
 
-            // 配置了 Gist 且有 Token，从 Gist 加载最新数据
+            // 无本地数据，尝试从 Gist 恢复
             const hasGist = this.gistId || localStorage.getItem('sk_gist_id');
             const hasToken = this.githubToken || localStorage.getItem('sk_github_token');
             if (hasGist && hasToken) {
               const gistData = await this.loadFromGitHub();
-              if (gistData) {
+              if (gistData && gistData.length > 0) {
                 this.surveys = gistData;
                 localStorage.setItem('surveys', JSON.stringify(this.surveys));
                 return;
               }
             }
-
-            // 已有缓存数据（含答卷），不再覆盖
-            if (this.surveys && this.surveys.length > 0) return;
 
             // 首次访问：从 surveys.json 加载种子数据
             try {
