@@ -425,12 +425,12 @@
           }
         },
         
-         async loadData() {
+          async loadData() {
             // 优先从 localStorage 恢复
-            const cached = localStorage.getItem('surveys');
-            if (cached) {
-              this.surveys = JSON.parse(cached);
-            }
+            try {
+              const cached = localStorage.getItem('surveys');
+              if (cached) this.surveys = JSON.parse(cached);
+            } catch (_) {}
 
             // 配置了 Gist 且有 Token，从 Gist 加载最新数据
             const hasGist = this.gistId || localStorage.getItem('sk_gist_id');
