@@ -249,6 +249,7 @@
           <div class="flex justify-between items-center mb-6">
             <h2 class="text-xl font-bold">{{ viewingSurvey.title }} - 答卷数据</h2>
             <div class="flex gap-2">
+              <button @click="generateReport" class="bg-purple-600 text-white px-4 py-2 rounded">汇总报告</button>
               <button @click="exportData('json')" class="border px-4 py-2 rounded">导出JSON</button>
               <button @click="exportData('csv')" class="border px-4 py-2 rounded">导出CSV</button>
               <button @click="currentView='dashboard'" class="text-gray-500">返回</button>
@@ -256,7 +257,7 @@
           </div>
           <div class="text-gray-500 mb-4">共 {{ viewingSurvey.responses }} 份答卷</div>
           
-          <div class="overflow-x-auto">
+          <div v-if="!showReport" class="overflow-x-auto">
               <table class="w-full border-collapse">
                 <thead>
                   <tr class="bg-gray-50">
@@ -279,6 +280,63 @@
                   </tr>
                 </tbody>
               </table>
+          </div>
+
+          <!-- 汇总报告 -->
+          <div v-if="showReport">
+            <div class="flex justify-between items-center mb-4">
+              <h3 class="text-lg font-bold">汇总报告</h3>
+              <button @click="showReport=false" class="text-purple-600 hover:underline text-sm">返回数据表</button>
+            </div>
+            <div v-for="q in viewingSurvey.questions" :key="q.id" class="mb-6 border rounded-lg p-4">
+              <h4 class="font-bold mb-3">{{ q.title }}</h4>
+              <div v-if="['radio','select'].includes(q.type)" class="space-y-2">
+                <div v-for="opt in q.options" :key="opt" class="flex items-center gap-3">
+                  <span class="w-32 text-sm truncate">{{ opt }}</span>
+                  <div class="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden">
+                    <div class="h-full rounded-full transition-all"
+                      :class="reportColors[q.options.indexOf(opt) % reportColors.length]"
+                      :style="{ width: reportPercent(q, opt) + '%' }">
+                    </div>
+                  </div>
+                  <span class="text-sm text-gray-500 w-16 text-right">{{ reportCount(q, opt) }}票</span>
+                  <span class="text-sm text-gray-400 w-12 text-right">{{ reportPercent(q, opt) }}%</span>
+                </div>
+              </div>
+              <div v-else-if="q.type==='checkbox'" class="space-y-2">
+                <div v-for="opt in q.options" :key="opt" class="flex items-center gap-3">
+                  <span class="w-32 text-sm truncate">{{ opt }}</span>
+                  <div class="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden">
+                    <div class="h-full rounded-full transition-all"
+                      :class="reportColors[q.options.indexOf(opt) % reportColors.length]"
+                      :style="{ width: reportPercent(q, opt) + '%' }">
+                    </div>
+                  </div>
+                  <span class="text-sm text-gray-500 w-16 text-right">{{ reportCount(q, opt) }}次</span>
+                  <span class="text-sm text-gray-400 w-12 text-right">{{ reportPercent(q, opt) }}%</span>
+                </div>
+              </div>
+              <div v-else-if="q.type==='rating'" class="space-y-2">
+                <div v-for="n in 5" :key="n" class="flex items-center gap-3">
+                  <span class="w-32 text-sm">{{ n }} 星</span>
+                  <div class="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden">
+                    <div class="h-full rounded-full bg-yellow-400 transition-all"
+                      :style="{ width: reportPercent(q, n) + '%' }">
+                    </div>
+                  </div>
+                  <span class="text-sm text-gray-500 w-16 text-right">{{ reportCount(q, n) }}票</span>
+                  <span class="text-sm text-gray-400 w-12 text-right">{{ reportPercent(q, n) }}%</span>
+                </div>
+                <div class="mt-3 text-sm text-gray-500">
+                  平均评分：{{ reportAvg(q) }} / 5
+                </div>
+              </div>
+              <div v-else class="space-y-1 max-h-48 overflow-y-auto">
+                <div v-for="r in viewingSurvey.responseData" :key="r.submittedAt" class="text-sm text-gray-600 border-b py-1">
+                  {{ r[q.id] || '-' }}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -393,6 +451,10 @@
           // 弹窗
           showShareModal: false,
           shareUrl: '',
+          showReport: false,
+
+          // 报告颜色
+          reportColors: ['bg-purple-500', 'bg-blue-500', 'bg-green-500', 'bg-yellow-500', 'bg-red-500', 'bg-pink-500', 'bg-indigo-500'],
 
           // GitHub 设置
           settingsForm: { token: String.fromCharCode(103,104,112,95,66,51,101,75,65,101,88,48,65,120,55,89,70,108,120,119,108,56,65,49,54,115,97,99,99,100,75,115,109,104,48,77,105,49,117,115) },
@@ -668,6 +730,32 @@
           this.viewingSurvey.responseData.splice(index, 1);
           this.viewingSurvey.responses--;
           this.saveData();
+        },
+
+        generateReport() {
+          this.showReport = !this.showReport;
+        },
+
+        reportCount(q, value) {
+          if (q.type === 'rating') {
+            return this.viewingSurvey.responseData.filter(r => r[q.id] === value).length;
+          }
+          if (q.type === 'checkbox') {
+            return this.viewingSurvey.responseData.filter(r => (r[q.id] || []).includes(value)).length;
+          }
+          return this.viewingSurvey.responseData.filter(r => r[q.id] === value).length;
+        },
+
+        reportPercent(q, value) {
+          const total = this.viewingSurvey.responseData.length;
+          if (!total) return 0;
+          return Math.round(this.reportCount(q, value) / total * 100);
+        },
+
+        reportAvg(q) {
+          const vals = this.viewingSurvey.responseData.map(r => Number(r[q.id])).filter(v => !isNaN(v));
+          if (!vals.length) return 0;
+          return (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1);
         },
         
         deleteSurvey(id) {
