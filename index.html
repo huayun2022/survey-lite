@@ -426,22 +426,28 @@
         },
         
          async loadData() {
-            // 优先从 localStorage 恢复（最快）
+            // 优先从 localStorage 恢复
             const cached = localStorage.getItem('surveys');
             if (cached) {
               this.surveys = JSON.parse(cached);
             }
 
-            // 如果配置了 Gist 且有 Token，从 Gist 加载最新数据
+            // 配置了 Gist 且有 Token，从 Gist 加载最新数据
             const hasGist = this.gistId || localStorage.getItem('sk_gist_id');
             const hasToken = this.githubToken || localStorage.getItem('sk_github_token');
             if (hasGist && hasToken) {
-              await this.loadFromGitHub();
-              // 如果 Gist 有数据则优先使用
-              if (this.surveys && this.surveys.length > 0) return;
+              const gistData = await this.loadFromGitHub();
+              if (gistData) {
+                this.surveys = gistData;
+                localStorage.setItem('surveys', JSON.stringify(this.surveys));
+                return;
+              }
             }
 
-            // 从本地 surveys.json 加载初始数据（无 Gist 或无 Token 时的兜底）
+            // 已有缓存数据（含答卷），不再覆盖
+            if (this.surveys && this.surveys.length > 0) return;
+
+            // 首次访问：从 surveys.json 加载种子数据
             try {
               const res = await fetch('./surveys.json');
               if (!res.ok) throw new Error('加载失败');
@@ -455,19 +461,18 @@
         async loadFromGitHub() {
           const token = this.githubToken || localStorage.getItem('sk_github_token');
           const gistId = this.gistId || localStorage.getItem('sk_gist_id');
-          if (!token || !gistId) return;
+          if (!token || !gistId) return null;
 
           try {
             const res = await fetch('https://api.github.com/gists/' + gistId, {
               headers: { 'Authorization': 'token ' + token }
             });
-            if (!res.ok) return;
+            if (!res.ok) return null;
             const data = await res.json();
-            const content = data.files['surveys.json'].content;
-            this.surveys = JSON.parse(content);
-            localStorage.setItem('surveys', JSON.stringify(this.surveys));
+            return JSON.parse(data.files['surveys.json'].content);
           } catch (e) {
             console.error('加载失败', e);
+            return null;
           }
         },
         
