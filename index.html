@@ -481,11 +481,16 @@
           const survey = this.surveys.find(s => s.id === id);
           if (survey) {
             this.currentSurvey = survey;
-            // 保存到 surveys 数组的引用
             this.currentSurveyRef = survey;
+            // 按题型初始化 formData 默认值
+            for (const q of survey.questions) {
+              if (q.type === 'checkbox') {
+                if (!this.formData[q.id]) this.formData[q.id] = [];
+              }
+            }
           } else {
             alert('问卷不存在');
-            window.location.href = '/';
+            window.location.href = window.location.pathname;
           }
         },
         
@@ -593,7 +598,8 @@
         },
         
         getShareLink(survey) {
-          const url = window.location.origin + '/?s=' + survey.id;
+          const base = window.location.origin + window.location.pathname.replace(/\/$/, '');
+          const url = base + '/?s=' + survey.id;
           this.shareUrl = url;
           this.showShareModal = true;
         },
