@@ -426,6 +426,14 @@
         },
         
           async loadData() {
+            // 版本检测：如果 localStorage 数据是旧版（含损坏中文），强制刷新
+            const CACHE_VERSION = '2';
+            const cachedVer = localStorage.getItem('sk_cache_ver');
+            if (cachedVer !== CACHE_VERSION) {
+              localStorage.removeItem('surveys');
+              localStorage.setItem('sk_cache_ver', CACHE_VERSION);
+            }
+
             // 优先从 localStorage 恢复（本地最新数据）
             try {
               const cached = localStorage.getItem('surveys');
@@ -434,7 +442,9 @@
                 // 已有本地数据（含答卷），不再加载远程
                 if (this.surveys.length > 0) return;
               }
-            } catch (_) {}
+            } catch (_) {
+              localStorage.removeItem('surveys');
+            }
 
             // 无本地数据，尝试从 Gist 恢复
             const hasGist = this.gistId || localStorage.getItem('sk_gist_id');
